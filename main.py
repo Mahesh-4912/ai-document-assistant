@@ -7,6 +7,7 @@ from app.vector_store import (
     load_embeddings,
     save_embeddings,
 )
+from app.chroma_store import save_to_chroma
 
 
 def main():
@@ -54,14 +55,20 @@ def main():
             chunk_embeddings.append(embedding)
 
         save_embeddings(
-        chunks=chunks,
-        embeddings=chunk_embeddings,
-        document_hash=document_hash
+            chunks=chunks,
+            embeddings=chunk_embeddings,
+            document_hash=document_hash
         )
 
         print("Embeddings created successfully.")
 
-    # 4. Ask user a question
+    # 4. Save chunks + embeddings to ChromaDB
+    save_to_chroma(
+        chunks=chunks,
+        embeddings=chunk_embeddings
+    )
+
+    # 5. Ask user a question
     question = input(
         "\nAsk a question about the PDF: "
     ).strip()
@@ -70,10 +77,10 @@ def main():
         print("Please enter a valid question.")
         return
 
-    # 5. Create embedding for the question
+    # 6. Create embedding for the question
     question_embedding = get_embedding(question)
 
-    # 6. Retrieve Top 3 relevant chunks
+    # 7. Retrieve Top 3 relevant chunks
     results = retrieve_top_chunks(
         question_embedding=question_embedding,
         chunk_embeddings=chunk_embeddings,
@@ -95,10 +102,10 @@ def main():
         )
         print(result["chunk"])
 
-    # 7. Combine retrieved chunks
+    # 8. Combine retrieved chunks
     context = "\n\n".join(relevant_chunks)
 
-    # 8. Generate final AI answer
+    # 9. Generate final AI answer
     print("\nGenerating AI answer...")
 
     answer = generate_answer(
