@@ -1,34 +1,63 @@
 import re
-
 from pypdf import PdfReader
 
 
 def read_pdf(file_path):
     reader = PdfReader(file_path)
-    full_text = ""
 
-    for page in reader.pages:
+    pages = []
+
+    for page_number, page in enumerate(
+        reader.pages,
+        start=1
+    ):
         text = page.extract_text()
 
         if text:
-            full_text += text + "\n"
+            text = re.sub(
+                r"\s+",
+                " ",
+                text
+            ).strip()
 
-    full_text = re.sub(r"\s+", " ", full_text).strip()
+            pages.append(
+                {
+                    "page_number": page_number,
+                    "text": text
+                }
+            )
 
-    return full_text
+    return pages
 
 
-def split_text(text, chunk_size=500, overlap=50):
+def split_pages(
+    pages,
+    chunk_size=500,
+    overlap=50
+):
     chunks = []
-    start = 0
 
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end].strip()
+    for page in pages:
+        text = page["text"]
+        page_number = page["page_number"]
 
-        if chunk:
-            chunks.append(chunk)
+        start = 0
 
-        start += chunk_size - overlap
+        while start < len(text):
+            end = start + chunk_size
+
+            chunk_text = text[
+                start:end
+            ].strip()
+
+            if chunk_text:
+                chunks.append(
+                    {
+                        "text": chunk_text,
+                        "page_number": page_number
+                    }
+                )
+
+            start += chunk_size - overlap
 
     return chunks

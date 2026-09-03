@@ -20,3 +20,4 @@ __pycache__/
 Thumbs.db
 data/embeddings.json
 data/chroma_db/
+data/*.pdf

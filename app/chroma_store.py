@@ -10,58 +10,128 @@ def get_collection():
         path=CHROMA_PATH
     )
 
-    collection = client.get_or_create_collection(
+    return client.get_or_create_collection(
         name=COLLECTION_NAME
     )
 
-    return collection
 
-
-def save_to_chroma(chunks, embeddings):
+def document_exists(document_hash):
     collection = get_collection()
 
-    # Clear old document chunks
-    existing_data = collection.get()
+    result = collection.get(
+        where={"document_hash": document_hash}
+    )
 
-    if existing_data["ids"]:
-        collection.delete(
-            ids=existing_data["ids"]
-        )
+    return bool(result["ids"])
+
+def save_to_chroma(
+    chunks,
+    embeddings,
+    document_hash,
+    file_name
+):
+    collection = get_collection()
+
+    if document_exists(document_hash):
+        return
 
     ids = [
-        f"chunk_{index}"
+        f"{document_hash}_{index}"
         for index in range(len(chunks))
+    ]
+
+    documents = [
+        chunk["text"]
+        for chunk in chunks
+    ]
+
+    metadatas = [
+        {
+            "document_hash": document_hash,
+            "file_name": file_name,
+            "page_number": chunk["page_number"],
+            "chunk_index": index
+        }
+        for index, chunk in enumerate(chunks)
     ]
 
     collection.add(
         ids=ids,
-        documents=chunks,
-        embeddings=embeddings
+        documents=documents,
+        embeddings=embeddings,
+        metadatas=metadatas
     )
 
-    print(
-        f"{len(chunks)} chunks saved to ChromaDB successfully."
-    )
 
-def search_chroma(question_embedding, top_k=3):
+def search_chroma(
+    question_embedding,
+    document_hash,
+    top_k=3
+):
     collection = get_collection()
 
     results = collection.query(
         query_embeddings=[question_embedding],
-        n_results=top_k
+        n_results=top_k,
+        where={
+            "document_hash": document_hash
+        }
     )
 
     relevant_chunks = []
 
+    if not results["documents"]:
+        return relevant_chunks
+
     documents = results["documents"][0]
     distances = results["distances"][0]
+    metadatas = results["metadatas"][0]
 
-    for document, distance in zip(documents, distances):
+    for document, distance, metadata in zip(
+        documents,
+        distances,
+        metadatas
+    ):
         relevant_chunks.append(
             {
                 "chunk": document,
-                "distance": distance
+                "distance": distance,
+                "file_name": metadata["file_name"],
+                "page_number": metadata["page_number"],
+                "chunk_index": metadata["chunk_index"]
             }
         )
 
     return relevant_chunks
+
+def get_document_chunks(document_hash):
+    collection = get_collection()
+
+    results = collection.get(
+        where={"document_hash": document_hash}
+    )
+
+    documents = results.get("documents", [])
+    metadatas = results.get("metadatas", [])
+
+    chunks = []
+
+    for document, metadata in zip(
+        documents,
+        metadatas
+    ):
+        chunks.append(
+            {
+                "chunk": document,
+                "page_number": metadata.get(
+                    "page_number",
+                    0
+                )
+            }
+        )
+
+    chunks.sort(
+        key=lambda item: item["page_number"]
+    )
+
+    return chunks
